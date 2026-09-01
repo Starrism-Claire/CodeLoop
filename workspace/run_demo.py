@@ -16,7 +16,7 @@ DEMO_WORKSPACE = ROOT / "workspace" / "todo_advanced_demo"
 USE_REAL_API = True
 ALI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 ALI_MODEL = "qwen3.7-plus"
-ALI_API_KEY = "sk-890625780f8a42c18c0112d851b70e75"
+ALI_API_KEY = ""
 ALI_TIMEOUT_SECONDS = 180
 ALI_MAX_TOKENS = 4000
 
