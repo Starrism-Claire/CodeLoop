@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 workspace/*/codeloop-trace.jsonl
 codeloop_config.json
+AGENTS.md
+Architecture.md
+TASK.md
