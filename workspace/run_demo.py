@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_DIR = ROOT / "workspace" / "todo_advanced_template"
-DEMO_WORKSPACE = ROOT / "workspace" / "todo_advanced_demo"
+TEMPLATE_DIR = ROOT / "workspace" / "word_count_template"
+DEMO_WORKSPACE = ROOT / "workspace" / "word_count_demo"
 
 # For Ali/DashScope, keep USE_REAL_API = True and fill ALI_API_KEY manually.
 USE_REAL_API = True
@@ -21,19 +21,19 @@ ALI_TIMEOUT_SECONDS = 180
 ALI_MAX_TOKENS = 4000
 
 TASK = """
-请在当前工作目录实现一个 Python 命令行 Todo 管理程序。
-用户需要能够创建、查看、修改、完成和删除任务。每个任务可以包含标题、描述、优先级、截止日期、标签和所属项目。
-程序还需要支持：
+当前工作目录中有一个 Python 文本词频统计工具，可以读取文本并统计单词出现次数，同时支持通过命令行输出出现次数最多的若干单词。
 
-按项目、状态、优先级和标签筛选任务
-按截止日期或优先级排序
-将任务持久化保存，本次程序退出后下次运行仍然能够读取
-对非法输入和不存在的任务进行合理处理
-提供清晰易用的命令行操作方式
+现在程序存在一些问题：
 
-请自行设计合理的项目结构和实现方案，不要把所有逻辑堆在一个文件中。代码应当易于维护和扩展。
-为主要功能编写自动化测试，并实际运行测试验证程序正确性。
-完成后告诉我你采用了什么项目结构、实现了哪些功能，以及测试结果。
+1. 单词统计没有正确处理大小写和常见标点，例如 Hello、hello、hello, 应该被视为同一个单词。
+2. 当要求输出的 Top N 大于实际单词数量时，程序不应该报错。
+3. 新增一个 --min-count 参数，只输出出现次数不少于指定值的单词。
+
+请检查当前项目，在现有代码结构基础上完成修复和功能扩展，不要整体重写项目。
+同时检查并补充必要的自动化测试，最后实际运行测试，确认程序正确。
+最后运行：python -m unittest test_wordfreq -v
+
+完成后简要说明修改了什么，以及最终测试结果。
 """
 
 

@@ -1,0 +1,4 @@
+Hello, hello! This is a sample text file.
+This file is for the word frequency demo.
+Words like hello, HELLO, and hello should be counted together.
+Punctuation should not create separate words.
