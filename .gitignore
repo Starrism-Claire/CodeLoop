@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+.pytest_tmp/
+*.pyc
+workspace/*/codeloop-trace.jsonl
+codeloop_config.json
