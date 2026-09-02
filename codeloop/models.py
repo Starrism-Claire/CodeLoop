@@ -41,6 +41,7 @@ class ToolResult:
     ok: bool
     output: Any = None
     error: str | None = None
+    error_type: str | None = None
 
     def as_observation(self) -> dict[str, Any]:
         return {
@@ -48,6 +49,7 @@ class ToolResult:
             "ok": self.ok,
             "output": self.output,
             "error": self.error,
+            "error_type": self.error_type,
         }
 
 
@@ -66,3 +68,6 @@ class TaskState:
     validation_output: str | None = None
     validation_duration_seconds: float | None = None
     last_auto_validation_version: int | None = None
+    read_file_versions: dict[str, int] = field(default_factory=dict)
+    last_failed_validation_command: str | None = None
+    last_failed_validation_version: int | None = None

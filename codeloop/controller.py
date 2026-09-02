@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .context import ContextManager
 from .llm import LLMClient, tool_schemas
-from .models import TaskState, ToolCall
+from .models import TaskState, ToolCall, ToolResult
 from .policy import PolicyError, RuntimePolicy
 from .router import ToolRouter, action_signature
 
@@ -69,7 +69,7 @@ class AgentController:
                     call = self._normalize_validation_call(call, state, explicit_validation_command, emit)
                     emit(f"[TOOL CALL] {call.name} {call.arguments}")
                     context.add_assistant_tool_call(call.name, call.arguments)
-                    result = self.router.execute(call, state)
+                    result = self._runtime_guard(call, state) or self.router.execute(call, state)
                     emit(f"[TOOL RESULT] ok={result.ok}")
                     context.add_tool_result(result.as_observation())
                     feedback = self.policy.record_action_result(state, call, result.ok, action_signature(call))
@@ -80,10 +80,20 @@ class AgentController:
 
                     if not result.ok:
                         batch_failed = True
+                        failure_feedback = _failure_feedback(result)
+                        emit(f"[RUNTIME] {failure_feedback}")
+                        context.add_runtime_feedback(failure_feedback)
                         emit("[RUNTIME] Batch paused after failed tool result.")
                         break
 
                     if self.auto_finalize_after_validation and call.name == "run_command":
+                        if not self.policy.is_validation_command(str(call.arguments.get("command", ""))):
+                            emit("[RUNTIME] Command succeeded but is not a validation command; continuing.")
+                            context.add_runtime_feedback(
+                                "The command succeeded, but it was not a test or validation command. "
+                                "Run the required validation command before finishing."
+                            )
+                            continue
                         allowed, reason = self.policy.can_terminate(state)
                         if allowed:
                             state.task_status = "completed"
@@ -164,7 +174,7 @@ class AgentController:
         emit(f"[RUNTIME] Auto-running validation command: {validation_command}")
         state.last_auto_validation_version = state.modification_version
         call = ToolCall(name="run_command", arguments={"command": validation_command})
-        result = self.router.execute(call, state)
+        result = self._runtime_guard(call, state) or self.router.execute(call, state)
         emit(f"[TOOL CALL] run_command {call.arguments}")
         emit(f"[TOOL RESULT] ok={result.ok}")
         context.add_tool_result(result.as_observation())
@@ -188,6 +198,54 @@ class AgentController:
         if len(tests) > 1:
             return "python -m unittest discover -v"
         return None
+
+    def _runtime_guard(self, call: ToolCall, state: TaskState) -> ToolResult | None:
+        if call.name == "read_file":
+            path = str(call.arguments.get("path", ""))
+            if state.read_file_versions.get(path) == state.modification_version:
+                return ToolResult(
+                    "read_file",
+                    False,
+                    error=(
+                        f"{path} has already been read and no file changes happened since then. "
+                        "Use the existing context, search_code, or read a changed/relevant source file."
+                    ),
+                    error_type="duplicate_read",
+                )
+            if self._after_failed_validation_without_modification(state) and not _is_relevant_source_file(path):
+                return ToolResult(
+                    "read_file",
+                    False,
+                    error=(
+                        "After validation failed, read relevant source files rather than rereading tests "
+                        "or unrelated files. Use the validation output to locate the failing implementation."
+                    ),
+                    error_type="validation_recovery_error",
+                )
+
+        if call.name == "run_command":
+            command = str(call.arguments.get("command", "")).strip()
+            if (
+                self.policy.is_validation_command(command)
+                and state.last_failed_validation_command == command
+                and state.last_failed_validation_version == state.modification_version
+            ):
+                return ToolResult(
+                    "run_command",
+                    False,
+                    error=(
+                        "The same validation command already failed and no code has changed since then. "
+                        "Inspect the failure output and modify relevant source files before rerunning validation."
+                    ),
+                    error_type="duplicate_validation",
+                )
+        return None
+
+    def _after_failed_validation_without_modification(self, state: TaskState) -> bool:
+        return (
+            state.validation_result == "failed"
+            and state.last_failed_validation_version == state.modification_version
+        )
 
     def _write_log(self, state: TaskState, tool_name: str, observation: dict) -> None:
         if not self.log_path:
@@ -216,3 +274,26 @@ def _extract_validation_command(task: str) -> str | None:
 
 def _clean_command(command: str) -> str:
     return command.strip().strip("`").strip()
+
+
+def _failure_feedback(result) -> str:
+    observation = result.as_observation()
+    error_type = observation.get("error_type") or "tool_error"
+    message = observation.get("error") or "tool failed"
+    output = observation.get("output")
+    stderr = ""
+    if isinstance(output, dict):
+        stderr = str(output.get("stderr") or "").strip()
+    if stderr:
+        return f"Tool failed: error_type={error_type}; message={message}; stderr={stderr}"
+    return f"Tool failed: error_type={error_type}; message={message}"
+
+
+def _is_relevant_source_file(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    name = Path(normalized).name
+    if not normalized.endswith(".py"):
+        return False
+    if name.startswith("test_") or name.endswith("_test.py") or "/tests/" in normalized:
+        return False
+    return True

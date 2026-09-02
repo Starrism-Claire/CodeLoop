@@ -18,7 +18,7 @@ class RuntimePolicy:
         max_steps: int = 30,
         command_timeout: int = 10,
         max_tool_output_chars: int = 12000,
-        repeated_failure_limit: int = 3,
+        repeated_failure_limit: int = 2,
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self.max_steps = max_steps
@@ -71,10 +71,28 @@ class RuntimePolicy:
         ]
         if any(token in lowered for token in dangerous):
             raise PolicyError(f"dangerous command rejected: {command}")
+        if re.search(r"(\|\|\s*true|\bor\s+true\b)", lowered):
+            raise PolicyError("commands may not hide failures with || true")
         if re.search(r"(^|[\\/\s])\.\.([\\/\s]|$)", command):
             raise PolicyError("commands may not reference parent paths")
         if re.search(r"\b(cd|pushd|popd)\b", lowered):
             raise PolicyError("directory-changing commands are not allowed")
+        if re.match(r"\s*(cat|head|tail|more|type|get-content)\b", lowered):
+            raise PolicyError("use read_file instead of shell commands to read files")
+
+    def is_validation_command(self, command: str) -> bool:
+        lowered = command.lower().strip()
+        validation_patterns = [
+            r"(^|\s)pytest(\s|$)",
+            r"(^|\s)python(?:3)?\s+-m\s+pytest(\s|$)",
+            r"(^|\s)python(?:3)?\s+-m\s+unittest(\s|$)",
+            r"(^|\s)python(?:3)?\s+-c\s+",
+            r"(^|\s)npm\s+test(\s|$)",
+            r"(^|\s)npm\s+run\s+test(\s|$)",
+            r"(^|\s)cargo\s+test(\s|$)",
+            r"(^|\s)go\s+test(\s|$)",
+        ]
+        return any(re.search(pattern, lowered) for pattern in validation_patterns)
 
     def check_step_limit(self, state: TaskState) -> None:
         if state.current_step >= self.max_steps:
@@ -93,7 +111,10 @@ class RuntimePolicy:
             return None
         state.failed_actions[signature] = state.failed_actions.get(signature, 0) + 1
         if state.failed_actions[signature] >= self.repeated_failure_limit:
-            return f"Repeated failure detected for {call.name}. Change strategy before retrying."
+            return (
+                f"Repeated failure detected for {call.name}. Inspect the error_type/message, "
+                "read relevant files if needed, and change the tool arguments before retrying."
+            )
         return None
 
     def truncate(self, value: str) -> tuple[str, bool]:

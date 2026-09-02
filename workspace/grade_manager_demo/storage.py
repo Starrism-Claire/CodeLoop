@@ -29,8 +29,8 @@ class Storage:
             for row in reader:
                 if len(row) >= 2:
                     name = row[0]
-                    # BUG: Not converting grade to int/float, remains as string
-                    grade = row[1]
+                    grade_str = row[1]
+                    grade = int(grade_str) if '.' not in grade_str else float(grade_str)
                     if name not in grades:
                         grades[name] = []
                     grades[name].append(grade)

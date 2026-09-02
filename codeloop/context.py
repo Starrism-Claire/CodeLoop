@@ -15,6 +15,18 @@ General workflow:
   the goal is clear; create the needed source and tests, then validate.
 - Prefer apply_patch for localized edits to existing files. Use write_file for new
   files or intentional full-file replacement.
+- apply_patch only accepts this exact format:
+  *** Begin Patch
+  *** Update File: path/to/file.py
+  @@
+  -old line
+  +new line
+  *** End Patch
+  Do not use git diff format such as ---/+++.
+- Use read_file to inspect files. Do not use run_command with cat, head, tail,
+  more, type, or Get-Content for file reading.
+- Commands run in the workspace by default. Do not cd elsewhere, and do not use
+  || true or similar constructs that hide failures.
 - If later actions do not depend on earlier observations, return multiple tool
   calls in one response so they can run in order.
 - If the user gives an exact validation command, use it exactly.
@@ -23,6 +35,12 @@ General workflow:
 - After any code change, do not finish until validation has passed.
 - If a tool or test fails, use the observed error output to change strategy and fix
   the issue before validating again.
+- Do not repeat read_file for the same file unless code changed after the last
+  read. Reuse the context already provided.
+- If validation failed, do not rerun the same validation command until you have
+  changed code. Inspect the failing source files and patch them first.
+- After validation failure, avoid rereading test files without a specific reason;
+  use the failure output to inspect the relevant implementation files.
 
 Keep actions scoped to the requested task and the workspace."""
 

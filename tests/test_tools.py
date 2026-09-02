@@ -13,6 +13,26 @@ def test_tool_errors_are_observations(tmp_path: Path):
 
     assert result.ok is False
     assert result.error
+    assert result.error_type == "file_not_found"
+
+
+def test_apply_patch_reports_format_error_type(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "app.py").write_text("value = 1\n", encoding="utf-8")
+    router = ToolRouter(RuntimePolicy(workspace))
+    state = TaskState()
+
+    result = router.execute(
+        ToolCall(
+            "apply_patch",
+            {"patch": "--- a/app.py\n+++ b/app.py\n@@\n-value = 1\n+value = 2"},
+        ),
+        state,
+    )
+
+    assert result.ok is False
+    assert result.error_type == "patch_format_error"
 
 
 def test_apply_patch_modifies_only_workspace_file(tmp_path: Path):

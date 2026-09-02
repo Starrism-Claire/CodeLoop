@@ -30,8 +30,7 @@ class GradeManager:
         grades = self.grades.get(name, [])
         if not grades:
             return 0
-        # BUG: Using wrong calculation - only averaging first few
-        return sum(grades[:2]) / len(grades) if len(grades) > 0 else 0
+        return sum(grades) / len(grades) if len(grades) > 0 else 0
 
     def get_all_students(self):
         """Get list of all students."""
@@ -39,12 +38,11 @@ class GradeManager:
 
     def rank_students_by_average(self):
         """Rank students by average grade from high to low."""
-        # BUG: Sorting in wrong order (ascending instead of descending)
         students_avg = [
             (name, self.get_average_grade(name))
             for name in self.get_all_students()
         ]
-        return sorted(students_avg, key=lambda x: x[1])
+        return sorted(students_avg, key=lambda x: x[1], reverse=True)
 
     def update_grade(self, name, grade):
         """Add an additional grade to a student."""

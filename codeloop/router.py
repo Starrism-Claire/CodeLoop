@@ -18,16 +18,19 @@ class ToolRouter:
             method = getattr(self.tools, call.name)
             result = method(**call.arguments)
         except PolicyError as exc:
-            result = ToolResult(call.name, False, error=str(exc))
+            result = ToolResult(call.name, False, error=str(exc), error_type="policy_error")
         except TypeError as exc:
-            result = ToolResult(call.name, False, error=f"invalid arguments: {exc}")
+            result = ToolResult(call.name, False, error=f"invalid arguments: {exc}", error_type="invalid_arguments")
         except Exception as exc:
-            result = ToolResult(call.name, False, error=str(exc))
+            result = ToolResult(call.name, False, error=str(exc), error_type="tool_error")
 
         self._update_state(call, result, state)
         return result
 
     def _update_state(self, call: ToolCall, result: ToolResult, state: TaskState) -> None:
+        if result.ok and call.name == "read_file" and "path" in call.arguments:
+            state.read_file_versions[str(call.arguments["path"])] = state.modification_version
+
         if result.ok and call.name in {"write_file", "apply_patch"}:
             state.has_modified_code = True
             state.has_validated = False
@@ -39,9 +42,15 @@ class ToolRouter:
                     state.modified_files.add(str(path))
 
         if call.name == "run_command" and result.ok:
-            state.has_validated = True
+            command = str(call.arguments.get("command", ""))
             state.validation_command = str(call.arguments.get("command", ""))
-            state.validation_result = "passed"
+            if self.policy.is_validation_command(command):
+                state.has_validated = True
+                state.validation_result = "passed"
+                state.last_failed_validation_command = None
+                state.last_failed_validation_version = None
+            else:
+                state.validation_result = None
             state.validation_output = _command_output_text(result.output)
             state.validation_duration_seconds = _command_duration(result.output)
         elif call.name == "run_command":
@@ -49,6 +58,9 @@ class ToolRouter:
             state.validation_result = "failed"
             state.validation_output = _command_output_text(result.output)
             state.validation_duration_seconds = _command_duration(result.output)
+            if self.policy.is_validation_command(state.validation_command):
+                state.last_failed_validation_command = state.validation_command
+                state.last_failed_validation_version = state.modification_version
 
 
 def _command_output_text(output: object) -> str | None:

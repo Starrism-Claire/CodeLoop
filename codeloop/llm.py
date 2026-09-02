@@ -275,7 +275,10 @@ def tool_schemas() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "apply_patch",
-                "description": "Apply a localized patch inside workspace.",
+                "description": (
+                    "Apply a localized patch inside workspace. Use only CodeLoop patch format, not git diff. "
+                    "Example: *** Begin Patch\\n*** Update File: app.py\\n@@\\n-old\\n+new\\n*** End Patch"
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {"patch": {"type": "string"}},
@@ -287,7 +290,11 @@ def tool_schemas() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "run_command",
-                "description": "Run a safe command in the workspace.",
+                "description": (
+                    "Run a safe command in the workspace. Use this for tests/builds/program runs. "
+                    "Do not read files with cat/head/tail/more/type/Get-Content; use read_file. "
+                    "Do not cd elsewhere or use || true. If the user gives a validation command, use it exactly."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {"command": {"type": "string"}, "timeout": {"type": "integer"}},

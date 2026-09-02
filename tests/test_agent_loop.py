@@ -94,6 +94,76 @@ def test_agent_reports_repeated_failures(tmp_path: Path):
     assert any("Repeated failure detected" in line for line in result["trace"])
 
 
+def test_controller_blocks_duplicate_read_file_without_changes(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "app.py").write_text("value = 1\n", encoding="utf-8")
+    llm = ScriptedLLMClient(
+        [
+            LLMResponse.tool("read_file", path="app.py"),
+            LLMResponse.tool("read_file", path="app.py"),
+            LLMResponse.final("Done."),
+        ]
+    )
+
+    result = AgentController(llm=llm, workspace=workspace).run("Inspect app.py.")
+
+    assert result["status"] == "completed"
+    assert any("duplicate_read" in line for line in result["trace"])
+
+
+def test_controller_blocks_duplicate_validation_without_code_change(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "test_app.py").write_text(
+        "import unittest\n\n"
+        "class AppTests(unittest.TestCase):\n"
+        "    def test_fail(self):\n"
+        "        self.assertEqual(1, 2)\n",
+        encoding="utf-8",
+    )
+    llm = ScriptedLLMClient(
+        [
+            LLMResponse.tool("run_command", command="python -m unittest test_app -v"),
+            LLMResponse.tool("run_command", command="python -m unittest test_app -v"),
+            LLMResponse.final("Done."),
+        ]
+    )
+
+    result = AgentController(llm=llm, workspace=workspace).run("Run tests.")
+
+    assert result["status"] == "completed"
+    assert any("duplicate_validation" in line for line in result["trace"])
+
+
+def test_controller_guides_recovery_to_source_after_validation_failure(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "app.py").write_text("def value():\n    return 1\n", encoding="utf-8")
+    (workspace / "test_app.py").write_text(
+        "import unittest\n"
+        "from app import value\n\n"
+        "class AppTests(unittest.TestCase):\n"
+        "    def test_value(self):\n"
+        "        self.assertEqual(value(), 2)\n",
+        encoding="utf-8",
+    )
+    llm = ScriptedLLMClient(
+        [
+            LLMResponse.tool("run_command", command="python -m unittest test_app -v"),
+            LLMResponse.tool("read_file", path="test_app.py"),
+            LLMResponse.tool("read_file", path="app.py"),
+            LLMResponse.final("Done."),
+        ]
+    )
+
+    result = AgentController(llm=llm, workspace=workspace).run("Fix failing tests.")
+
+    assert result["status"] == "completed"
+    assert any("validation_recovery_error" in line for line in result["trace"])
+    assert any("[TOOL CALL] read_file {'path': 'app.py'}" in line for line in result["trace"])
+
+
 def test_demo_agent_creates_calculator_project_from_scratch(tmp_path: Path):
     from codeloop.llm import HeuristicDemoLLMClient
 
@@ -220,6 +290,30 @@ def test_controller_replaces_guessed_validation_with_user_command(tmp_path: Path
 
     assert result["validation_command"] == "python -m unittest test_todo -v"
     assert any("Replacing validation command" in line for line in result["trace"])
+
+
+def test_controller_does_not_treat_file_display_as_validation(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "test_app.py").write_text(
+        "import unittest\n\n"
+        "class AppTests(unittest.TestCase):\n"
+        "    def test_ok(self):\n"
+        "        self.assertTrue(True)\n",
+        encoding="utf-8",
+    )
+    llm = ScriptedLLMClient(
+        [
+            LLMResponse.tool("run_command", command="type test_app.py"),
+            LLMResponse.tool("run_command", command="python -m unittest test_app -v"),
+        ]
+    )
+
+    result = AgentController(llm=llm, workspace=workspace).run("Run the tests.")
+
+    assert result["status"] == "completed"
+    assert result["validation_command"] == "python -m unittest test_app -v"
+    assert any("use read_file instead" in line for line in result["trace"])
 
 
 def test_controller_infers_unittest_command_for_natural_language_task(tmp_path: Path):
