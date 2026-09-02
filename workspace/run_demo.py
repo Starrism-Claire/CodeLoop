@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_DIR = ROOT / "workspace" / "word_count_template"
-DEMO_WORKSPACE = ROOT / "workspace" / "word_count_demo"
+TEMPLATE_DIR = ROOT / "workspace" / "grade_manager_template"
+DEMO_WORKSPACE = ROOT / "workspace" / "grade_manager_demo"
 
 # For Ali/DashScope, keep USE_REAL_API = True and fill ALI_API_KEY manually.
 USE_REAL_API = True
@@ -21,19 +21,15 @@ ALI_TIMEOUT_SECONDS = 180
 ALI_MAX_TOKENS = 4000
 
 TASK = """
-当前工作目录中有一个 Python 文本词频统计工具，可以读取文本并统计单词出现次数，同时支持通过命令行输出出现次数最多的若干单词。
+当前工作目录中有一个学生成绩管理程序，但存在多个 bug 导致部分功能出现问题。
 
-现在程序存在一些问题：
+请检查现有代码，修复导致测试失败的错误，并增加"按照平均成绩从高到低显示学生排名"的功能。
 
-1. 单词统计没有正确处理大小写和常见标点，例如 Hello、hello、hello, 应该被视为同一个单词。
-2. 当要求输出的 Top N 大于实际单词数量时，程序不应该报错。
-3. 新增一个 --min-count 参数，只输出出现次数不少于指定值的单词。
+请在现有项目结构基础上完成修复和功能增强，不要整体重写项目。
+同时检查并补充必要的自动化测试，最后实际运行测试验证程序正确。
+最后必须原样运行：python -m unittest test_grade_manager -v
 
-请检查当前项目，在现有代码结构基础上完成修复和功能扩展，不要整体重写项目。
-同时检查并补充必要的自动化测试，最后实际运行测试，确认程序正确。
-最后运行：python -m unittest test_wordfreq -v
-
-完成后简要说明修改了什么，以及最终测试结果。
+完成后简要说明修改了哪些内容以及测试结果。
 """
 
 
